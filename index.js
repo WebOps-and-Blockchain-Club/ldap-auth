@@ -9,7 +9,7 @@ const LDAP_ADMIN_PASSWORD = "";
 const maindn = "dc=ldap,dc=iitm,dc=ac,dc=in";
 const rootdn = `cn=${LDAP_ADMIN_USERNAME},ou=bind,${maindn}`;
 
-const getLDAPUser = (roll, password) => {
+const authLDAPUser = (roll, password) => {
   return new Promise((resolve, reject) => {
     client.bind(rootdn, LDAP_ADMIN_PASSWORD, function (err) {
       if (err) return reject(err);
@@ -62,6 +62,56 @@ const getLDAPUser = (roll, password) => {
   });
 };
 
-getLDAPUser("", "")
+const searchLDAPUser = (searchStr) => {
+  return new Promise((resolve, reject) => {
+    client.bind(rootdn, LDAP_ADMIN_PASSWORD, function (err) {
+      if (err) return reject(err);
+
+      client.search(
+        `ou=student,${maindn}`,
+        {
+          filter: `(|(uid=*${searchStr}*)(displayName=*${searchStr}*))`,
+          scope: "sub",
+          paged: true,
+          sizeLimit: 100,
+        },
+        (err, res) => {
+          if (err) return reject(err);
+
+          let users = [];
+
+          res.on("searchRequest", (searchRequest) => {
+            console.log("searchRequest: ", searchRequest.messageID);
+          });
+
+          res.on("searchEntry", (entry) => {
+            console.log("entry: " + JSON.stringify(entry.object));
+            users.push(entry.object);
+          });
+
+          res.on("searchReference", (referral) => {
+            console.log("referral: " + referral.uris.join());
+          });
+
+          res.on("error", (err) => {
+            console.error("error: " + err.message);
+            return reject(err);
+          });
+
+          res.on("end", (result) => {
+            console.log("status: " + result?.status);
+            return resolve(users);
+          });
+        }
+      );
+    });
+  });
+};
+
+authLDAPUser("", "")
   .then((a) => console.log(true))
-  .catch((e) => console.log(e));
+  .catch(console.error);
+
+searchLDAPUser("")
+  .then(() => console.log(true))
+  .catch(console.error);
